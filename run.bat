@@ -1,6 +1,6 @@
 @echo off
-title AI Clipper Studio
+title Chink's Clipper
 cd /d "%~dp0"
-echo Starting AI Clipper Studio...
+echo Starting Chink's Clipper...
 ".venv\Scripts\streamlit.exe" run app.py
 pause
