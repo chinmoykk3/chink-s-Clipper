@@ -1,0 +1,30 @@
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Output media & temp files
+output/
+*.mp4
+*.mp3
+*.wav
+*.m4a
+*.ass
+*.srt
+
+# Environment secrets
+.env
+*.env.local
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
