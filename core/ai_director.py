@@ -56,7 +56,8 @@ def analyze_and_extract_clips(
     api_key: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
-    Calls Gemini 2.0 Flash to detect the most viral clips from the transcript.
+    Calls Gemini Flash to detect the most viral clips from the transcript.
+    Tries modern gemini-3.8-flash, falling back to other flash models if needed.
     """
     key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
@@ -77,18 +78,31 @@ Ensure exact timestamp boundaries, punchy hook headlines, and standalone narrati
 Return ONLY the JSON list.
 """
 
-    response = client.models.generate_content(
-        model='gemini-2.0-flash',
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=DIRECTOR_SYSTEM_PROMPT,
-            temperature=0.3,
-            response_mime_type="application/json"
-        )
-    )
+    models_to_try = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash']
+    response = None
+    last_err = None
+
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=DIRECTOR_SYSTEM_PROMPT,
+                    temperature=0.3,
+                    response_mime_type="application/json"
+                )
+            )
+            if response and response.text:
+                break
+        except Exception as e:
+            last_err = e
+            continue
+
+    if not response or not response.text:
+        raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
     
     raw_text = response.text.strip()
-    # Clean possible markdown wrapping if any
     if raw_text.startswith("```"):
         raw_text = raw_text.split("```")[1]
         if raw_text.startswith("json"):

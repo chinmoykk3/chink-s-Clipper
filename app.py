@@ -107,7 +107,7 @@ with st.sidebar:
     
     st.divider()
     st.markdown("**Hardware & Model Status:**")
-    st.markdown("- **Brain:** Gemini 2.0 Flash")
+    st.markdown("- **Brain:** Gemini 3.8 Flash")
     st.markdown("- **GPU:** NVIDIA GeForce RTX 4060")
     st.markdown("- **Format:** 1080x1920 (9:16 Vertical)")
 
