@@ -49,6 +49,45 @@ def format_transcript_for_llm(transcript_items: List[Dict[str, Any]], max_chars:
         return full_text[:max_chars] + "\n...[Transcript truncated due to length]..."
     return full_text
 
+def call_gemini_api(client: genai.Client, prompt: str, api_key: str) -> str:
+    """
+    Executes prompt using modern Interactions API (gemini-3.8-flash) as recommended by Google AI Studio,
+    with automatic fallbacks to generateContent with v1beta.
+    """
+    # 1. Primary: Interactions API with gemini-3.8-flash
+    for m in ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.0-flash']:
+        try:
+            interaction = client.interactions.create(
+                model=m,
+                input=prompt,
+                system_instruction=DIRECTOR_SYSTEM_PROMPT,
+                response_mime_type="application/json"
+            )
+            if interaction and getattr(interaction, 'output_text', None):
+                return interaction.output_text
+        except Exception as e:
+            print(f"Interactions API ({m}) error: {e}")
+
+    # 2. Fallback: Models generateContent using v1beta
+    beta_client = genai.Client(api_key=api_key, http_options={'api_version': 'v1beta'})
+    for m in ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash']:
+        try:
+            res = beta_client.models.generate_content(
+                model=m,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=DIRECTOR_SYSTEM_PROMPT,
+                    temperature=0.3,
+                    response_mime_type="application/json"
+                )
+            )
+            if res and res.text:
+                return res.text
+        except Exception as e2:
+            print(f"v1beta generateContent ({m}) error: {e2}")
+
+    raise RuntimeError("Failed to generate clips with Gemini. Please check your API key permissions.")
+
 def analyze_and_extract_clips(
     transcript_items: List[Dict[str, Any]],
     video_title: str = "",
@@ -56,8 +95,7 @@ def analyze_and_extract_clips(
     api_key: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
-    Calls Gemini Flash to detect the most viral clips from the transcript.
-    Tries modern gemini-3.8-flash, falling back to other flash models if needed.
+    Analyzes transcript and extracts viral clips using Gemini.
     """
     key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
@@ -78,31 +116,8 @@ Ensure exact timestamp boundaries, punchy hook headlines, and standalone narrati
 Return ONLY the JSON list.
 """
 
-    models_to_try = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash']
-    response = None
-    last_err = None
-
-    for model_name in models_to_try:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=DIRECTOR_SYSTEM_PROMPT,
-                    temperature=0.3,
-                    response_mime_type="application/json"
-                )
-            )
-            if response and response.text:
-                break
-        except Exception as e:
-            last_err = e
-            continue
-
-    if not response or not response.text:
-        raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
+    raw_text = call_gemini_api(client, prompt, key).strip()
     
-    raw_text = response.text.strip()
     if raw_text.startswith("```"):
         raw_text = raw_text.split("```")[1]
         if raw_text.startswith("json"):
